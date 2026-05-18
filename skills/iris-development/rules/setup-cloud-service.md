@@ -33,7 +33,7 @@ export AGENT_MEMORY_API_KEY="<your-store-api-key>"
 
 ```python
 import os
-import time
+from datetime import datetime, timezone
 from redis_agent_memory import AgentMemory, models
 
 with AgentMemory(
@@ -49,7 +49,7 @@ with AgentMemory(
         actor_id="user-42",
         role=models.MessageRole.USER,
         content=[{"text": "hello"}],
-        created_at=int(time.time() * 1000),
+        created_at=datetime.now(timezone.utc),   # tz-aware UTC datetime
     )
     print(res.event.event_id)
 ```
@@ -72,7 +72,7 @@ async function smokeTest() {
     actorId:   "user-42",
     role:      "USER",
     content:   [{ text: "hello" }],
-    createdAt: Date.now(),
+    createdAt: new Date(),                       // SDK serializes to UTC ISO-8601
   });
   console.log(res.event.eventId);
 }

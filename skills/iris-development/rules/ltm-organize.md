@@ -80,17 +80,20 @@ Later searches can then scope cheaply:
 **Python:**
 
 ```python
+from datetime import datetime, timedelta, timezone
+
 # All preferences for one user
 agent_memory.search_long_term_memory(
     filter_={"owner_id": {"eq": "user-42"}, "namespace": {"eq": "preferences"}},
 )
 
 # Incidents across all users in the last 7 days
+seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 agent_memory.search_long_term_memory(
     text="checkout failure",
     filter_={
         "topics":     {"all": ["incident", "billing"]},
-        "created_at": {"gte": seven_days_ago_ms},
+        "created_at": {"gte": seven_days_ago},     # tz-aware UTC datetime
     },
 )
 ```
@@ -104,11 +107,12 @@ await agentMemory.searchLongTermMemory({
 });
 
 // Incidents across all users in the last 7 days
+const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 await agentMemory.searchLongTermMemory({
   text: "checkout failure",
   filter: {
     topics:    { all: ["incident", "billing"] },
-    createdAt: { gte: sevenDaysAgoMs },
+    createdAt: { gte: sevenDaysAgo },             // Date
   },
 });
 ```

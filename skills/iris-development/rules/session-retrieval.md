@@ -40,6 +40,13 @@ async function loadSession(agentMemory: AgentMemory, sessionId: string) {
 }
 ```
 
+**Two timestamps on each event.** Every `SessionEvent` in the response carries:
+
+- `created_at` / `createdAt` — the **client-supplied** UTC timestamp you passed at write time. This is what the agent considers "when the turn happened" and what events are ordered by.
+- `system_timestamp` / `systemTimestamp` — a **server-set** UTC timestamp recording when the data plane ingested the event. Useful for diagnostics (e.g. clock skew between agent and server, or detecting replayed events with stale `created_at` values).
+
+Both are `datetime` (Python) / `Date` (TypeScript) on the SDK side; serialized as UTC ISO-8601 on the wire.
+
 **Correct:** Page through sessions for admin tools.
 
 **Python:**

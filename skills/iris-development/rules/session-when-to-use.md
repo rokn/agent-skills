@@ -21,6 +21,7 @@ Redis Agent Memory has two tiers. They serve different jobs — picking the wron
 **Python:**
 
 ```python
+from datetime import datetime, timezone
 from redis_agent_memory import AgentMemory, models
 
 # Every user/assistant turn → add_session_event. That's it.
@@ -29,14 +30,14 @@ agent_memory.add_session_event(
     actor_id="user-42",
     role=models.MessageRole.USER,
     content=[{"text": user_msg}],
-    created_at=now_ms,
+    created_at=datetime.now(timezone.utc),
 )
 agent_memory.add_session_event(
     session_id=session_id,
     actor_id="agent-1",
     role=models.MessageRole.ASSISTANT,
     content=[{"text": reply}],
-    created_at=now_ms,
+    created_at=datetime.now(timezone.utc),
 )
 # Promotion happens asynchronously — see promotion-overview.
 ```
@@ -49,14 +50,14 @@ await agentMemory.addSessionEvent({
   actorId:   "user-42",
   role:      "USER",
   content:   [{ text: userMsg }],
-  createdAt: Date.now(),
+  createdAt: new Date(),
 });
 await agentMemory.addSessionEvent({
   sessionId: sessionId,
   actorId:   "agent-1",
   role:      "ASSISTANT",
   content:   [{ text: reply }],
-  createdAt: Date.now(),
+  createdAt: new Date(),
 });
 ```
 

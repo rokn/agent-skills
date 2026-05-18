@@ -144,7 +144,7 @@ export AGENT_MEMORY_API_KEY="<your-store-api-key>"
 
 ```python
 import os
-import time
+from datetime import datetime, timezone
 from redis_agent_memory import AgentMemory, models
 
 with AgentMemory(
@@ -160,7 +160,7 @@ with AgentMemory(
         actor_id="user-42",
         role=models.MessageRole.USER,
         content=[{"text": "hello"}],
-        created_at=int(time.time() * 1000),
+        created_at=datetime.now(timezone.utc),   # tz-aware UTC datetime
     )
     print(res.event.event_id)
 ```
@@ -183,7 +183,7 @@ async function smokeTest() {
     actorId:   "user-42",
     role:      "USER",
     content:   [{ text: "hello" }],
-    createdAt: Date.now(),
+    createdAt: new Date(),                       // SDK serializes to UTC ISO-8601
   });
   console.log(res.event.eventId);
 }
@@ -209,12 +209,12 @@ Working-memory conversation history. Appending events, retrieving session memory
 
 `AgentMemory.add_session_event(...)` (Python) / `agentMemory.addSessionEvent(...)` (TypeScript) appends a single event to a session. The session is created on first write; if `session_id` / `sessionId` is omitted the server generates one (32-char UUID without dashes) and returns it on the response. Every successful write also enqueues a promotion job — so payload quality directly affects what lands in long-term memory.
 
-**Correct: Pass `actor_id`, `role`, `content`, and a millisecond `created_at` on every turn. Carry the same `session_id` for the whole conversation.**
+**Correct: Pass `actor_id`, `role`, `content`, and a **tz-aware UTC `created_at`** on every turn. Carry the same `session_id` for the whole conversation.**
 
-**Python:**
+**Python** — `created_at` is a `datetime.datetime` (UTC, tz-aware):**
 
 ```python
-import time
+from datetime import datetime, timezone
 from redis_agent_memory import AgentMemory, models
 
 def append_event(
@@ -227,13 +227,13 @@ def append_event(
     metadata:   dict | None = None,
 ):
     return agent_memory.add_session_event(
-        session_id=session_id,                   # client-supplied — keeps the turn ordered with prior turns
-        actor_id=actor_id,                       # who said this (user-42, agent-1, system)
-        role=role,                               # MessageRole.USER | .ASSISTANT | .SYSTEM
-        content=[{"text": text}],                # list of typed content parts
-        created_at=int(time.time() * 1000),      # Unix ms — required, must be > 0
-        metadata=metadata,                       # any JSON, ≤ 16 KB
-    ).event                                      # → server-assigned eventId, etc.
+        session_id=session_id,                       # client-supplied — keeps the turn ordered with prior turns
+        actor_id=actor_id,                           # who said this (user-42, agent-1, system)
+        role=role,                                   # MessageRole.USER | .ASSISTANT | .SYSTEM
+        content=[{"text": text}],                    # list of typed content parts
+        created_at=datetime.now(timezone.utc),       # tz-aware UTC datetime — required
+        metadata=metadata,                           # any JSON, ≤ 16 KB
+    ).event                                          # → server-assigned eventId, etc.
 
 append_event(
     agent_memory,
@@ -244,7 +244,7 @@ append_event(
 )
 ```
 
-**TypeScript:**
+**TypeScript** — `createdAt` is a `Date` (SDK serializes to UTC ISO-8601):**
 
 ```typescript
 import { AgentMemory } from "@redis-iris/agent-memory";
@@ -264,10 +264,10 @@ async function appendEvent(
     actorId:   args.actorId,
     role:      args.role,
     content:   [{ text: args.text }],
-    createdAt: Date.now(),
+    createdAt: new Date(),                         // UTC Date — required
     metadata:  args.metadata,
   });
-  return res.event;                              // server-assigned eventId, etc.
+  return res.event;                                // server-assigned eventId, etc.
 }
 
 await appendEvent(agentMemory, {
@@ -278,9 +278,11 @@ await appendEvent(agentMemory, {
 });
 ```
 
-**Incorrect: Letting the server generate a new `session_id` on every turn, or sending seconds instead of milliseconds.**
+**Incorrect: Letting the server generate a new `session_id` on every turn, or passing a naive (tz-less) datetime in Python.**
 
 ```python
+from datetime import datetime
+
 # Bad: omitting session_id on every call creates a new session per turn,
 # so the session memory contains exactly one event and promotion has no
 # context to extract from.
@@ -288,7 +290,8 @@ agent_memory.add_session_event(
     actor_id="user-42",
     role=models.MessageRole.USER,
     content=[{"text": msg}],
-    created_at=int(time.time()),       # <-- seconds; the API expects ms
+    created_at=datetime.now(),                     # <-- naive datetime; ambiguous timezone.
+                                                   #     Use datetime.now(timezone.utc).
 )
 ```
 
@@ -296,6 +299,7 @@ agent_memory.add_session_event(
 
 ```python
 import asyncio
+from datetime import datetime, timezone
 
 async def main():
     async with AgentMemory(URL, store_id=SID, api_key=KEY) as agent_memory:
@@ -304,7 +308,7 @@ async def main():
             actor_id="user-42",
             role=models.MessageRole.USER,
             content=[{"text": "hi"}],
-            created_at=int(time.time() * 1000),
+            created_at=datetime.now(timezone.utc),
         )
 
 asyncio.run(main())
@@ -316,13 +320,13 @@ asyncio.run(main())
 
 - `content`: list of typed parts; today only `{"text": "..."}` is supported.
 
-- `created_at` / `createdAt`: Unix **milliseconds**, must be ≥ 1.
+- `created_at` / `createdAt`: tz-aware UTC `datetime` (Python) or `Date` (TypeScript). The SDKs serialize to ISO-8601 on the wire.
 
 - `metadata`: any valid JSON document, ≤ 16 KB.
 
 - Session TTL is governed by the store's short-memory TTL (configured at store creation). Each new event refreshes the TTL on the session key.
 
-The response (`res.event` / `result.event`) includes the server-generated `event_id` / `eventId` (32-char UUID without dashes) — store it if you might need `delete_session_event` / `deleteSessionEvent` later.
+The response (`res.event` / `result.event`) includes the server-generated `event_id` / `eventId` (32-char UUID without dashes) — store it if you might need `delete_session_event` / `deleteSessionEvent` later. It also includes a `system_timestamp` / `systemTimestamp` (set by the data plane on ingestion) alongside the client-supplied `created_at` — see `session-retrieval` for how to use the two timestamps.
 
 The Python SDK exposes an `_async` variant for every method when used inside an `async` function:
 
@@ -342,6 +346,7 @@ Redis Agent Memory has two tiers. They serve different jobs — picking the wron
 **Python:**
 
 ```python
+from datetime import datetime, timezone
 from redis_agent_memory import AgentMemory, models
 
 # Every user/assistant turn → add_session_event. That's it.
@@ -350,14 +355,14 @@ agent_memory.add_session_event(
     actor_id="user-42",
     role=models.MessageRole.USER,
     content=[{"text": user_msg}],
-    created_at=now_ms,
+    created_at=datetime.now(timezone.utc),
 )
 agent_memory.add_session_event(
     session_id=session_id,
     actor_id="agent-1",
     role=models.MessageRole.ASSISTANT,
     content=[{"text": reply}],
-    created_at=now_ms,
+    created_at=datetime.now(timezone.utc),
 )
 # Promotion happens asynchronously — see promotion-overview.
 ```
@@ -370,14 +375,14 @@ await agentMemory.addSessionEvent({
   actorId:   "user-42",
   role:      "USER",
   content:   [{ text: userMsg }],
-  createdAt: Date.now(),
+  createdAt: new Date(),
 });
 await agentMemory.addSessionEvent({
   sessionId: sessionId,
   actorId:   "agent-1",
   role:      "ASSISTANT",
   content:   [{ text: reply }],
-  createdAt: Date.now(),
+  createdAt: new Date(),
 });
 ```
 
@@ -464,6 +469,14 @@ async function loadSession(agentMemory: AgentMemory, sessionId: string) {
   return res.events;
 }
 ```
+
+**Two timestamps on each event.** Every `SessionEvent` in the response carries:**
+
+- `created_at` / `createdAt` — the **client-supplied** UTC timestamp you passed at write time. This is what the agent considers "when the turn happened" and what events are ordered by.
+
+- `system_timestamp` / `systemTimestamp` — a **server-set** UTC timestamp recording when the data plane ingested the event. Useful for diagnostics (e.g. clock skew between agent and server, or detecting replayed events with stale `created_at` values).
+
+Both are `datetime` (Python) / `Date` (TypeScript) on the SDK side; serialized as UTC ISO-8601 on the wire.
 
 **Correct: Page through sessions for admin tools.**
 
@@ -717,17 +730,20 @@ Later searches can then scope cheaply:
 **Python:**
 
 ```python
+from datetime import datetime, timedelta, timezone
+
 # All preferences for one user
 agent_memory.search_long_term_memory(
     filter_={"owner_id": {"eq": "user-42"}, "namespace": {"eq": "preferences"}},
 )
 
 # Incidents across all users in the last 7 days
+seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
 agent_memory.search_long_term_memory(
     text="checkout failure",
     filter_={
         "topics":     {"all": ["incident", "billing"]},
-        "created_at": {"gte": seven_days_ago_ms},
+        "created_at": {"gte": seven_days_ago},     # tz-aware UTC datetime
     },
 )
 ```
@@ -741,11 +757,12 @@ await agentMemory.searchLongTermMemory({
 });
 
 // Incidents across all users in the last 7 days
+const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 await agentMemory.searchLongTermMemory({
   text: "checkout failure",
   filter: {
     topics:    { all: ["incident", "billing"] },
-    createdAt: { gte: sevenDaysAgoMs },
+    createdAt: { gte: sevenDaysAgo },             // Date
   },
 });
 ```
@@ -845,7 +862,7 @@ for m in hits:
 |---|---|
 | `session_id`, `owner_id`, `namespace` | `eq`, `ne`, `in`, `all` |
 | `topics`, `memory_type` | `eq`, `ne`, `in`, `all` (tag filter) |
-| `created_at` | `gt`, `lt`, `gte`, `lte`, `eq` (Unix ms) |
+| `created_at` | `gt`, `lt`, `gte`, `lte`, `eq` (tz-aware `datetime` / `Date`) |
 
 `filter_op` / `filterOp` controls how the **top-level filter fields** combine: `"all"` (default, AND) or `"any"` (OR). Inside one field, `eq` / `ne` / `in` / `all` are mutually exclusive — set exactly one.
 

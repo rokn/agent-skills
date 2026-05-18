@@ -85,7 +85,7 @@ for m in hits:
 |---|---|
 | `session_id`, `owner_id`, `namespace` | `eq`, `ne`, `in`, `all` |
 | `topics`, `memory_type` | `eq`, `ne`, `in`, `all` (tag filter) |
-| `created_at` | `gt`, `lt`, `gte`, `lte`, `eq` (Unix ms) |
+| `created_at` | `gt`, `lt`, `gte`, `lte`, `eq` (tz-aware `datetime` / `Date`) |
 
 `filter_op` / `filterOp` controls how the **top-level filter fields** combine: `"all"` (default, AND) or `"any"` (OR). Inside one field, `eq` / `ne` / `in` / `all` are mutually exclusive — set exactly one.
 
