@@ -1,6 +1,6 @@
 # Iris Development
 
-A structured repository for creating and maintaining Iris development guidelines optimized for agents and LLMs.
+Iris is Redis's umbrella for AI-focused products. This skill houses development guidelines for products under the Iris umbrella, organized into per-product sections — currently covering Redis Agent Memory (RAM). Optimized for agents and LLMs.
 
 
 ## Structure

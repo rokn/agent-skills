@@ -56,8 +56,9 @@ export const SKILLS: Record<string, SkillConfig> = {
     outputFile: join(SKILLS_DIR, 'iris-development/AGENTS.md'),
     sectionMap: {
       setup: 1,
-      config: 2,
-      usage: 3,
+      session: 2,
+      ltm: 3,
+      promotion: 4,
     },
   },
 }
