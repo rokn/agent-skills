@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "organization": "Redis, Inc.",
+  "date": "May 2026",
+  "abstract": "TODO — Description of the Iris product line, setup, and best practices. Optimized for AI agents and LLMs.",
+  "references": [
+    "TODO — https://... (Iris docs URL)"
+  ]
+}
